@@ -7,15 +7,12 @@ It's allowed to use:
 2. Apache Portable Runtime library - for dictionary
 3. Cmake
 
-============================================================================
-
 How to use:
 There are 3 main units:
 1. json_parser - allow to get tokens from raw string and extract key-value pair
 2. hashtable - store key-tag pair
 3. tvl - converts key-value to tvl record
 
-============================================================================
 Ver1 to ver2 upgrades:
 
 INPUT_FILE - file with raw json strings to convert
