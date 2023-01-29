@@ -2,14 +2,15 @@
 
 #include <ctype.h>
 
-#define TOKENS 20
+#include <logger.h>
+
 #define WRONGTOKEN -1
 #define DATATOKEN 1
 
 /*
  * Init JSMN json parser
 */
-void JparserInit(Jparser_t* jParser)
+void JParserInit(Jparser_t* jParser)
 {
     jParser->nextToken = DATATOKEN;
     jsmn_init(&jParser->parser);
@@ -18,13 +19,14 @@ void JparserInit(Jparser_t* jParser)
 /*
  * Slit input string to json tokens
 */
-bool GetTokens(Jparser_t* jParser, const char *line, size_t len)
+bool JParserGetTokens(Jparser_t* jParser, const char *line, size_t len)
 {
     jParser->nextToken = DATATOKEN;
     jsmn_parse(&jParser->parser, line, len, jParser->tokens, TOKENS);
 
     if (jParser->tokens[0].type != JSMN_OBJECT)
     {
+        LogInfo("Wrong input string format: root is not object");
         return false;
     }
 
@@ -42,6 +44,7 @@ static bool GetKey(Jparser_t* jParser, const char* line, KeyValue_t* keyValue)
     if (keyLen < 1)
     {
         jParser->nextToken = WRONGTOKEN;
+        LogInfo("Can't parse key token from input string: wrong length");
         return false;
     }
 
@@ -58,11 +61,20 @@ static bool GetKey(Jparser_t* jParser, const char* line, KeyValue_t* keyValue)
 */
 static bool GetValue(Jparser_t* jParser, const char* line, KeyValue_t* keyValue)
 {
+    if ((jParser->tokens[jParser->nextToken].type != JSMN_PRIMITIVE &&
+        jParser->tokens[jParser->nextToken].type != JSMN_STRING))
+    {
+        jParser->nextToken = WRONGTOKEN;
+        LogInfo("Can't parse value token: not allowed type");
+        return false;
+    }
+
     int valueIndex = jParser->tokens[jParser->nextToken].start;
     int valueLen = jParser->tokens[jParser->nextToken].end - jParser->tokens[jParser->nextToken].start;
 
-    if (valueLen < 1)
+    if (valueLen < 1 || jParser->tokens[jParser->nextToken].start == -1)
     {
+        LogInfo("Can't parse value token: wrong length");
         jParser->nextToken = WRONGTOKEN;
         return false;
     }
@@ -88,13 +100,14 @@ static bool GetValue(Jparser_t* jParser, const char* line, KeyValue_t* keyValue)
         jParser->nextToken++;
     }
 
+    keyValue->value[valueLen] = 0;
     return true;
 }
 
 /*
  * Extract key-value pair from token
 */
-bool GetNextKeyValue(Jparser_t* jParser, const char* line, KeyValue_t* keyValue)
+bool JParserGetNext(Jparser_t* jParser, const char* line, KeyValue_t* keyValue)
 {
     //in case of last read was unsuccessful or key is not string we don't parse other values
     if (jParser->nextToken == WRONGTOKEN || jParser->tokens[jParser->nextToken].type != JSMN_STRING)

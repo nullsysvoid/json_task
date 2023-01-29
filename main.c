@@ -1,96 +1,84 @@
 #include <ctype.h>
 
-#include "hashtable.h"
-#include "json_parser.h"
-#include "tvl.h"
+#include <hashtable.h>
+#include <json_parser.h>
+#include <tvl.h>
 
-FILE *fp;
+#include <logger/logger.h>
 
-/*
- * 1.Split json sting to tokens,
- * 2.Write TVL value to file
- * 3.Add tag to dictionary
-*/
-void PutJstring(const char *line, size_t len, HashTable_t* tab)
+#include "config.h"
+
+void OnError(FILE* fpi, FILE* fpo)
 {
-    Jparser_t jParser;
-    JparserInit(&jParser);
+    if (fpo != NULL)
+        fclose(fpo);
 
-    //split json string to tokens
-    GetTokens(&jParser, line, len);
+    if (fpi != NULL)
+        fclose(fpi);
 
-    bool res = true;
-    while (res)
-    {
-        //iterate over tokens to extract key/values
-        KeyValue_t kv;
-        res = GetNextKeyValue(&jParser, line, &kv);
-
-        if (res)
-        {
-            int tag = SetNextTag(tab, kv.key);
-            TVLRecord_t tvl = {
-                .tag = tag,
-                .len = 0,
-            };
-
-            MakeTVLRecord(&tvl, &kv);
-            fwrite(&tvl.outputBuff, 1, tvl.len, fp);
-        }
-    }
+    LogInfo("Task ended with error");
+    exit(EXIT_FAILURE);
 }
 
-/*
- * Dump tag records to end of the file
-*/
-void DumpDictToFile(HashTable_t* tab)
-{
-    const apr_array_header_t *tarr = apr_table_elts(tab->tab);
-    const apr_table_entry_t *telts = (const apr_table_entry_t*)tarr->elts;
-    int i;
-
-    char nl = '\n';
-    fwrite(&nl, 1, sizeof(nl), fp);
-
-    for (i = 0; i < tarr->nelts; i++) {
-        int offset = 0;
-        char output[128];
-
-        bool lastValue = (i == tarr->nelts - 1);
-        MakeTVLDictionaryRecord(output, atoi(telts[i].val), telts[i].key, lastValue, &offset);
-        fwrite(output, 1, offset, fp);
-    }
-}
 
 int main(int argc, char *argv[])
 {
+    //input file
+    FILE* fpi;
+
     //output file
-    if ((fp = fopen("output.txt", "wb")) == NULL) {
-        return 0;
+    FILE* fpo;
+
+    char buf[INPUT_STRLEN];
+    char* line = buf;
+
+    LogInfo("Start entity");
+
+    if ((fpo = fopen(OUTPUT_FILE, "wb")) == NULL)
+    {
+        LogInfo("Can't create output file %s", OUTPUT_FILE);
+        OnError(fpo, fpi);
+    }
+
+    if ((fpi = fopen(INPUT_FILE, "r")) == NULL)
+    {
+        LogInfo("Can't open input file: %s", INPUT_FILE);
+        OnError(fpo, fpi);
     }
 
     //hashtable for tags
     HashTable_t tab;
-    CreateHashTable(&tab);
-
-    FILE * fpi;
-    fpi = fopen("input.txt", "r");
-    if (fpi == NULL)
-        exit(EXIT_FAILURE);
-
-    char * line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    while ((read = getline(&line, &len, fpi)) != -1) {
-        PutJstring(line, read, &tab);
+    if (!CreateHashTable(&tab))
+    {
+        LogInfo("Can't init hashtable");
+        OnError(fpo, fpi);
     }
 
-    DumpDictToFile(&tab);
-    fclose(fpi);
-    if (line)
-        free(line);
+    size_t len = 0;
+    ssize_t read;
 
-    fclose(fp);
+    bool result = true;
+    while ((read = getline(&line, &len, fpi)) != -1)
+    {
+        if (len >= INPUT_STRLEN)
+        {
+            LogInfo("Input string is too long");
+            OnError(fpo, fpi);
+        }
+
+        LogInfo("Parsing input string: %s", line);
+        if (!TVLDumpJstring(line, read, &tab, fpo))
+        {
+            OnError(fpo, fpi);
+        }
+    }
+
+    TVLDumpDict(&tab, fpo);
+    LogInfo("Task successfully ended");
+
+    fclose(fpi);
+    fclose(fpo);
+
     return 0;
 }
 

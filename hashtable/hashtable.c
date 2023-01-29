@@ -1,20 +1,18 @@
 #include "hashtable.h"
-
 #include <stdio.h>
-
-#define TABLE_INIT_SZ           32
-#define INITTAG                 1
-
+#include <logger.h>
 
 /*
  * Init hashtable for APR
 */
-void CreateHashTable(HashTable_t* ht)
+bool CreateHashTable(HashTable_t* ht)
 {
+    LogDebug("Init new table");
     ht->tagCounter = INITTAG;
     apr_initialize();
     apr_pool_create(&ht->mp, NULL);
     ht->tab = apr_table_make(ht->mp, TABLE_INIT_SZ);
+    return ht->tab != NULL;
 }
 
 /*
@@ -23,6 +21,14 @@ void CreateHashTable(HashTable_t* ht)
 void SetKeyValue(HashTable_t* ht, const char *key, const char *val)
 {
     apr_table_set(ht->tab, key, val);
+}
+
+/*
+ * Get data from hashtable
+*/
+const char* GetValue(HashTable_t* ht, const char *key)
+{
+    return apr_table_get(ht->tab, key);
 }
 
 /*

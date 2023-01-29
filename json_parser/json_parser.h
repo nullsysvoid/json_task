@@ -15,6 +15,7 @@
 #include <string.h>
 
 #define KEYVALUELEN 128
+#define TOKENS 128
 
 typedef enum {
     ValueType_UNKNOWN = 0,
@@ -34,13 +35,13 @@ typedef struct KeyValue
 
 typedef struct Jparser
 {
-    jsmntok_t tokens[128];
+    jsmntok_t tokens[TOKENS];
     int nextToken;
     jsmn_parser parser;
 } Jparser_t;
 
-void JparserInit(Jparser_t* jParser);
-bool GetTokens(Jparser_t* jParser, const char *line, size_t len);
-bool GetNextKeyValue(Jparser_t* jParser, const char* line, KeyValue_t* keyValue);
+void JParserInit(Jparser_t* jParser);
+bool JParserGetTokens(Jparser_t* jParser, const char *line, size_t len);
+bool JParserGetNext(Jparser_t* jParser, const char* line, KeyValue_t* keyValue);
 
 #endif // JSON_PARSER_H
